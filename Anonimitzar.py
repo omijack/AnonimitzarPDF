@@ -53,15 +53,14 @@ def extraer_datos(texto):
 def anonimizar_pdf(input_path, output_path):
     doc = fitz.open(input_path)
 
-    # 🟢 1. Extreure text global
+    # Extreure text global
     texto_global = ""
     for page in doc:
         texto_global += page.get_text()
 
-    # 🟢 2. Detectar dades una sola vegada
     datos_encontrados = extraer_datos(texto_global)
 
-    # 🟢 3. Aplicar redacció a cada pàgina
+    # Aplicar redacció a cada pàgina
     for page in doc:
         for valor_completo in datos_encontrados.values():
             if isinstance(valor_completo, list):
@@ -87,11 +86,12 @@ def anonimizar_pdf(input_path, output_path):
 
     doc.save(output_path, garbage=4, deflate=True)
     
-
+# abrimos el CSV para registrar los nombres de los archivos originales y anonimizados
 with open(CSV_LOG, mode="w", newline="", encoding="utf-8") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(["original","anonimizado"])
 
+    # Para cada PDF en la carpeta de entrada ejectamos anonimizar_pdf() y guardamos en output folder
     contador = 1
     for file in os.listdir(INPUT_FOLDER):
         if file.lower().endswith(".pdf"):
