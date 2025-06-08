@@ -1,37 +1,50 @@
 import fitz  # PyMuPDF
 import os
 import re
+import csv
 
-INPUT_FILE = "Input/ejemplo.pdf"
-OUTPUT_FILE = "Output/ejemplo_anon.pdf"
+INPUT_FOLDER = "C:\\FEDERAT\\INPUT"
+OUTPUT_FOLDER = "C:\\FEDERAT\\OUTPUT"
+CSV_LOG = os.path.join(OUTPUT_FOLDER, "Insuficiencia_pediatria_anon.csv")
+os.makedirs("Output", exist_ok=True)
 
 def extraer_datos(texto):
     datos = {}
-
-    # Buscar tots els codis de col·legiat
-    colegiados = re.findall(r'Nº Colegiado\s*:\s*([A-Za-z0-9\-]+)', texto)
+    #Identificar idioma del informe
+    idioma = "catala" if "Nom del malalt" in texto else "castella"
+        
+    # Buscar codigos de colegiados
+    colegiados = re.findall(r'Nº Colegiado\s*:\s*([A-Za-z0-9\-]+)', texto) if idioma == "castella" else re.findall(r'Nº Col.legiat\s*:\s*([A-Za-z0-9\-]+)', texto)  
     if colegiados:
         datos["Colegiados"] = []
         for colegiado in colegiados:
             colegiado = colegiado.strip()
-            # Captura tota la línia després del codi
+            # Captura toda la línea que contiene el colegiado
             regex = re.escape(colegiado) + r"[^\n]*"
             if m := re.search(regex, texto):
                 fragment = m.group(0).strip()
-                print(f"🔍 Trobat col·legiat: {fragment}")
                 datos["Colegiados"].append(fragment)
 
     # Altres camps
-    if m := re.search(r'Nombre\s*(.+)', texto):
-        datos["Nombre"] = m.group(1).strip()
-    if m := re.search(r'Nom del malalt\s*(.+)', texto):
-        datos["Nombre"] = m.group(1).strip()
-    if m := re.search(r'Nº Historia clínica\s*(.+)', texto):
-        datos["Historia"] = m.group(1).strip()
-    if m := re.search(r'Nº Asistencia\s*([A-Z0-9]{9})', texto):
-        datos["Assistencia"] = m.group(1).strip()
-    if m := re.search(r'Teléfono\s*(\d{9})', texto):
-        datos["Telefono"] = m.group(1).strip()
+    if idioma == "castella":
+        if m := re.search(r'Nombre\s*(.+)', texto):
+            datos["Nombre"] = m.group(1).strip()
+        if m := re.search(r'Nº Historia clínica\s*(.+)', texto):
+            datos["Historia"] = m.group(1).strip()
+        if m := re.search(r'Nº Asistencia\s*([A-Z0-9]{9})', texto):
+            datos["Assistencia"] = m.group(1).strip()
+        if m := re.search(r'Teléfono\s*(\d{9})', texto):
+            datos["Telefono"] = m.group(1).strip()
+    else: 
+        if m := re.search(r'Nom del malalt\s*(.+)', texto):
+            datos["Nombre"] = m.group(1).strip()
+        if m := re.search(r'Nº Història clínica\s*(.+)', texto):
+            datos["Historia"] = m.group(1).strip()
+        if m := re.search(r'Nº Assistència\s*([A-Z0-9]{9})', texto):
+            datos["Assistencia"] = m.group(1).strip()
+        if m := re.search(r'Telèfon\s*(\d{9})', texto):
+            datos["Telefono"] = m.group(1).strip()
+    
     if m := re.search(r'C.I.P.\s*([A-Z]{4}\d{10})', texto):
         datos["CIP"] = m.group(1).strip()
 
@@ -72,8 +85,20 @@ def anonimizar_pdf(input_path, output_path):
     for page in doc:
         page.apply_redactions()
 
-    doc.save(output_path)
-    print(f"✅ PDF anonimizado guardado en: {output_path}")
+    doc.save(output_path, garbage=4, deflate=True)
+    
 
-os.makedirs("Output", exist_ok=True)
-anonimizar_pdf(INPUT_FILE, OUTPUT_FILE)
+with open(CSV_LOG, mode="w", newline="", encoding="utf-8") as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(["original","anonimizado"])
+
+    contador = 1
+    for file in os.listdir(INPUT_FOLDER):
+        if file.lower().endswith(".pdf"):
+            input_path = os.path.join(INPUT_FOLDER, file)
+            output_filename = f"insuficiencia_ped_{contador}.pdf"
+            output_path = os.path.join(OUTPUT_FOLDER, output_filename)
+            anonimizar_pdf(input_path, output_path)
+            writer.writerow([file, output_filename])
+            contador += 1
+print(f"✅ {contador} pdfs anonimizados en: {OUTPUT_FOLDER}")
