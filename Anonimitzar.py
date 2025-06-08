@@ -13,19 +13,7 @@ def extraer_datos(texto):
     #Identificar idioma del informe
     idioma = "catala" if "Nom del malalt" in texto else "castella"
         
-    # Buscar codigos de colegiados
-    colegiados = re.findall(r'Nº Colegiado\s*:\s*([A-Za-z0-9\-]+)', texto) if idioma == "castella" else re.findall(r'Nº Col.legiat\s*:\s*([A-Za-z0-9\-]+)', texto)  
-    if colegiados:
-        datos["Colegiados"] = []
-        for colegiado in colegiados:
-            colegiado = colegiado.strip()
-            # Captura toda la línea que contiene el colegiado
-            regex = re.escape(colegiado) + r"[^\n]*"
-            if m := re.search(regex, texto):
-                fragment = m.group(0).strip()
-                datos["Colegiados"].append(fragment)
-
-    # Altres camps
+    # Buscar datos del paciente
     if idioma == "castella":
         if m := re.search(r'Nombre\s*(.+)', texto):
             datos["Nombre"] = m.group(1).strip()
@@ -62,6 +50,7 @@ def anonimizar_pdf(input_path, output_path):
 
     # Aplicar redacció a cada pàgina
     for page in doc:
+        # Redacar datos del paciente
         for valor_completo in datos_encontrados.values():
             if isinstance(valor_completo, list):
                 for valor in valor_completo:
@@ -73,13 +62,19 @@ def anonimizar_pdf(input_path, output_path):
                 for rect in rects:
                     page.add_redact_annot(rect, fill=(1, 1, 1))
 
-        # Firmes
+        # Redactar Firmas
         for text in ["Médico Responsable del Alta", "Metge/essa Responsable de l'Alta"]:
             rects = page.search_for(text)
             if rects:
                 y_inicio = rects[0].y0
                 zona_a_ocultar = fitz.Rect(0, y_inicio, page.rect.width, page.rect.height)
                 page.add_redact_annot(zona_a_ocultar, fill=(1, 1, 1))
+        #Redactar números de colegiado
+        anotaciones = re.findall(r'\(08-\d{5}-\d-[^)]+\)', page.get_text())
+        for anotacion in anotaciones:
+            rects = page.search_for(anotacion)
+            for rect in rects:
+                page.add_redact_annot(rect, fill=(1, 1, 1))
 
     for page in doc:
         page.apply_redactions()
