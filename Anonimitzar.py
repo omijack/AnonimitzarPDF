@@ -3,8 +3,8 @@ import os
 import re
 import csv
 
-INPUT_FOLDER = "C:\\FEDERAT\\INPUT_TEST"
-OUTPUT_FOLDER = "C:\\FEDERAT\\OUTPUT_TEST"
+INPUT_FOLDER = "C:\\FEDERAT\\INPUT"
+OUTPUT_FOLDER = "C:\\FEDERAT\\OUTPUT"
 CSV_LOG = os.path.join(OUTPUT_FOLDER, "Insuficiencia_pediatria_anon.csv")
 os.makedirs("Output", exist_ok=True)
 
@@ -13,18 +13,6 @@ def extraer_datos(texto):
     #Identificar idioma del informe
     idioma = "catala" if "Nom del malalt" in texto else "castella"
         
-    # Buscar codigos de colegiados
-    colegiados = re.findall(r'Nº Colegiado\s*:\s*([A-Za-z0-9\-]+)', texto) if idioma == "castella" else re.findall(r'Nº Col.legiat\s*:\s*([A-Za-z0-9\-]+)', texto)  
-    if colegiados:
-        datos["Colegiados"] = []
-        for colegiado in colegiados:
-            colegiado = colegiado.strip()
-            # Captura toda la línea que contiene el colegiado
-            regex = re.escape(colegiado) + r"[^\n]*"
-            if m := re.search(regex, texto):
-                fragment = m.group(0).strip()
-                datos["Colegiados"].append(fragment)
-
     # Altres camps
     if idioma == "castella":
         if m := re.search(r'Nombre\s*(.+)', texto):
