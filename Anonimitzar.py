@@ -3,8 +3,8 @@ import os
 import re
 import csv
 
-INPUT_FOLDER = "C:\\FEDERAT\\INPUT"
-OUTPUT_FOLDER = "C:\\FEDERAT\\OUTPUT"
+INPUT_FOLDER = "C:\\FEDERAT\\INPUT_TEST"
+OUTPUT_FOLDER = "C:\\FEDERAT\\OUTPUT_TEST"
 CSV_LOG = os.path.join(OUTPUT_FOLDER, "Insuficiencia_pediatria_anon.csv")
 os.makedirs("Output", exist_ok=True)
 
@@ -13,7 +13,19 @@ def extraer_datos(texto):
     #Identificar idioma del informe
     idioma = "catala" if "Nom del malalt" in texto else "castella"
         
-    # Buscar datos del paciente
+    # Buscar codigos de colegiados
+    colegiados = re.findall(r'Nº Colegiado\s*:\s*([A-Za-z0-9\-]+)', texto) if idioma == "castella" else re.findall(r'Nº Col.legiat\s*:\s*([A-Za-z0-9\-]+)', texto)  
+    if colegiados:
+        datos["Colegiados"] = []
+        for colegiado in colegiados:
+            colegiado = colegiado.strip()
+            # Captura toda la línea que contiene el colegiado
+            regex = re.escape(colegiado) + r"[^\n]*"
+            if m := re.search(regex, texto):
+                fragment = m.group(0).strip()
+                datos["Colegiados"].append(fragment)
+
+    # Altres camps
     if idioma == "castella":
         if m := re.search(r'Nombre\s*(.+)', texto):
             datos["Nombre"] = m.group(1).strip()
@@ -48,9 +60,9 @@ def anonimizar_pdf(input_path, output_path):
 
     datos_encontrados = extraer_datos(texto_global)
 
-    # Aplicar redacció a cada pàgina
+    # Aplicar redaccion a cada página del PDF
     for page in doc:
-        # Redacar datos del paciente
+        # Datos del paciente
         for valor_completo in datos_encontrados.values():
             if isinstance(valor_completo, list):
                 for valor in valor_completo:
@@ -62,19 +74,25 @@ def anonimizar_pdf(input_path, output_path):
                 for rect in rects:
                     page.add_redact_annot(rect, fill=(1, 1, 1))
 
-        # Redactar Firmas
+        # Firmas
         for text in ["Médico Responsable del Alta", "Metge/essa Responsable de l'Alta"]:
             rects = page.search_for(text)
             if rects:
                 y_inicio = rects[0].y0
                 zona_a_ocultar = fitz.Rect(0, y_inicio, page.rect.width, page.rect.height)
                 page.add_redact_annot(zona_a_ocultar, fill=(1, 1, 1))
-        #Redactar números de colegiado
-        anotaciones = re.findall(r'\(08-\d{5}-\d-[^)]+\)', page.get_text())
+
+        # Anotaciones colegiados
+        anotaciones = re.findall(r'\d{2}/\d{2}/\d{2} \d{2}:\d{2} \([^)]+\)', page.get_text())
+
         for anotacion in anotaciones:
-            rects = page.search_for(anotacion)
-            for rect in rects:
-                page.add_redact_annot(rect, fill=(1, 1, 1))
+            # Solo redactamos el contenido entre paréntesis
+            match = re.search(r'\(([^)]+)\)', anotacion)
+            if match:
+                texto_a_borrar = f"({match.group(1)})"
+                rects = page.search_for(texto_a_borrar)
+                for rect in rects:
+                    page.add_redact_annot(rect, fill=(1, 1, 1))
 
     for page in doc:
         page.apply_redactions()
@@ -96,4 +114,4 @@ with open(CSV_LOG, mode="w", newline="", encoding="utf-8") as csvfile:
             anonimizar_pdf(input_path, output_path)
             writer.writerow([file, output_filename])
             contador += 1
-print(f"✅ {contador} pdfs anonimizados en: {OUTPUT_FOLDER}")
+print(f"✅ {contador-1} pdfs anonimizados en: {OUTPUT_FOLDER}")
